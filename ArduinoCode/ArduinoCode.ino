@@ -1,9 +1,6 @@
 /**********************************************************************************
     TITLE: Arduino IoT Cloud + IR + Manual (Switch) control 4 Relays with DHT11 & Real-Time feedback using ESP32
-    Click on the following links to learn more.
-    YouTube Video: https://youtu.be/UlT72MMbPu8
-    Related Blog :
-    by Tech StudyCell
+
     Preferences--> Aditional boards Manager URLs :
     https://dl.espressif.com/dl/package_esp32_index.json, http://arduino.esp8266.com/stable/package_esp8266com_index.json
 
@@ -70,7 +67,6 @@ bool SwitchState_3 = LOW;
 bool SwitchState_4 = LOW;
 
 float temperature1  = 0;
-float humidity1     = 0;
 int   reconnectFlag = 0;
 
 void onLED1Change();
@@ -93,7 +89,7 @@ void initProperties()
   ArduinoCloud.addProperty(LED2, READWRITE, ON_CHANGE, onLED2Change);
   ArduinoCloud.addProperty(LED3, READWRITE, ON_CHANGE, onLED3Change);
   ArduinoCloud.addProperty(LED4, READWRITE, ON_CHANGE, onLED4Change);
-  ArduinoCloud.addProperty(temperature, READ, 10 * SECONDS, NULL); //Update temperature value after every 8 seconds
+  ArduinoCloud.addProperty(temperature, READ, 10 * SECONDS, NULL); //Update temperature value after every 10 seconds
 }
 //Handler for the Wifi SSID and Password.
 WiFiConnectionHandler ArduinoIoTPreferredConnection(SSID, PASS);
