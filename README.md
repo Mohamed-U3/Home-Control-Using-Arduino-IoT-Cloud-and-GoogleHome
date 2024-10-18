@@ -1,1 +1,1 @@
-# Home-Control-Using-Arduino-IoT-Cloud-and-GoogleHome
+# Home Control Using Arduino IoT Cloud and GoogleHome

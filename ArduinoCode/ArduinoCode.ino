@@ -17,15 +17,28 @@
 #include <ArduinoIoTCloud.h>
 #include <Arduino_ConnectionHandler.h>
 #include <IRremote.h>
-#include <DHT.h>
+#define Router
 
 const char DEVICE_LOGIN_NAME[]  = "dbfa5e5d-9dde-4be9-bfea-b23afb2e44d5"; //Enter DEVICE ID
-
+#ifdef Router
 const char SSID[]               = "AMD";    //Enter WiFi SSID (name)
 const char PASS[]               = "   hoda   ";    //Enter WiFi password
+#else
+const char SSID[]               = "U3";    //Enter WiFi SSID (name)
+const char PASS[]               = "mmyralimmo1";    //Enter WiFi password
+#endif
 const char DEVICE_KEY[]         = "VR5ZvHa!cu0un@GWHTLJ6pfFN";    //Enter Secret device password (Secret Key)
 
-#define DHTPIN              4 //D4  pin connected with DHT
+// Define the analog pin
+#define TemperaturePin  36 // GPIO4
+
+// Define constants for the thermistor
+const float R_NTC_25 = 10000;  // Resistance of the NTC thermistor at 25 degrees C (10k Ohm)
+const float B_coefficient = 3950; // B coefficient of the thermistor
+const float R_series = 10000;  // Series resistor value (10k Ohm)
+const float T_ref = 298.15;  // Reference temperature in Kelvin (25°C = 298.15K)
+const float Vcc = 3.3;  // Supply voltage
+
 #define IR_RECV_PIN         35 //D35 pin connected with IR Receiver IC
 
 // define the GPIO connected with Relays and switches
@@ -37,17 +50,11 @@ const char DEVICE_KEY[]         = "VR5ZvHa!cu0un@GWHTLJ6pfFN";    //Enter Secret
 #define SwitchPin1 13  //D13
 #define SwitchPin2 12  //D12
 #define SwitchPin3 14  //D14
-#define SwitchPin4 27  //D27
+#define SwitchPin4 27  //D39
 
 #define wifiLed    2   //D2
 
-// Uncomment whatever type you're using!
-#define DHTTYPE DHT11     // DHT 11
-//#define DHTTYPE DHT22   // DHT 22, AM2302, AM2321
-//#define DHTTYPE DHT21   // DHT 21, AM2301
 
-
-DHT dht(DHTPIN, DHTTYPE);
 IRrecv irrecv(IR_RECV_PIN);
 decode_results results;
 
@@ -66,10 +73,10 @@ float temperature1  = 0;
 float humidity1     = 0;
 int   reconnectFlag = 0;
 
-void onLight1Change();
-void onLight2Change();
-void onLight3Change();
-void onLight4Change();
+void onLED1Change();
+void onLED2Change();
+void onLED3Change();
+void onLED4Change();
 
 CloudSwitch LED1;
 CloudSwitch LED2;
@@ -80,13 +87,12 @@ CloudTemperatureSensor temperature;
 //for Initialzing the Arduino IoT cloud services
 void initProperties()
 {
-
   ArduinoCloud.setBoardId(DEVICE_LOGIN_NAME);
   ArduinoCloud.setSecretDeviceKey(DEVICE_KEY);
-  ArduinoCloud.addProperty(LED1, READWRITE, ON_CHANGE, onLight1Change);
-  ArduinoCloud.addProperty(LED2, READWRITE, ON_CHANGE, onLight2Change);
-  ArduinoCloud.addProperty(LED3, READWRITE, ON_CHANGE, onLight3Change);
-  ArduinoCloud.addProperty(LED4, READWRITE, ON_CHANGE, onLight4Change);
+  ArduinoCloud.addProperty(LED1, READWRITE, ON_CHANGE, onLED1Change);
+  ArduinoCloud.addProperty(LED2, READWRITE, ON_CHANGE, onLED2Change);
+  ArduinoCloud.addProperty(LED3, READWRITE, ON_CHANGE, onLED3Change);
+  ArduinoCloud.addProperty(LED4, READWRITE, ON_CHANGE, onLED4Change);
   ArduinoCloud.addProperty(temperature, READ, 10 * SECONDS, NULL); //Update temperature value after every 8 seconds
 }
 //Handler for the Wifi SSID and Password.
@@ -95,21 +101,34 @@ WiFiConnectionHandler ArduinoIoTPreferredConnection(SSID, PASS);
 //Function used to read the Temperature sensor.
 void readSensor()
 {
+  // Read analog value from GPIO36
+  int adcValue = analogRead(TemperaturePin);
+  
+  // Convert ADC value to voltage
+  float voltage = adcValue * (Vcc / 4095.0);  // 12-bit ADC (0 to 4095)
+  
+  // Calculate resistance of the NTC thermistor
+  // Since the voltage increases when the NTC heats up, adjust the formula accordingly
+  float R_thermistor = R_series * (Vcc / voltage - 1);
+  
+  // Calculate temperature in Kelvin using the B-coefficient equation
+  float temperatureK = (B_coefficient * T_ref) / (B_coefficient + (T_ref * log(R_thermistor / R_NTC_25)));
+  
+  // Convert temperature from Kelvin to Celsius
+  float temperatureC = temperatureK - 273.15;
 
-  float h = dht.readHumidity();
-  float t = dht.readTemperature(); // or dht.readTemperature(true) for Fahrenheit
+//  // Debugging: Print raw values
+//  Serial.print("ADC Value: ");
+//  Serial.println(adcValue);
+//  Serial.print("Voltage: ");
+//  Serial.println(voltage);
+//  Serial.print("Thermistor Resistance: ");
+//  Serial.println(R_thermistor);
+//  Serial.print("Temperature: ");
+//  Serial.print(temperatureC);
+//  Serial.println(" °C");
 
-  if (isnan(h) || isnan(t))
-  {
-    Serial.println("Failed to read from DHT sensor!");
-    return;
-  }
-  else
-  {
-    humidity1 = h;
-    temperature = t;
-    // Serial.println(tempareture);
-  }
+  temperature = temperatureC;
 }
 
 void ir_remote_control()
@@ -294,7 +313,6 @@ void setup()
 
   // Defined in thingProperties.h
   initProperties();                                   // Start Arduino IoT Cloud services
-  dht.begin();                                        // Start Temperature sensor
   irrecv.enableIRIn();                                // Start IR receiver
   ArduinoCloud.begin(ArduinoIoTPreferredConnection);  // Connect to Wifi and Arduino IoT Cloud
 
@@ -308,8 +326,8 @@ void setup()
      the higher number the more granular information you’ll get.
      The default is 0 (only errors).
      Maximum is 4
- */
-  setDebugMessageLevel(2);
+  */
+  setDebugMessageLevel(4);
   ArduinoCloud.printDebugInfo();    // Start Debug feature.
 
   /* Configure GPIO pins */
@@ -317,8 +335,9 @@ void setup()
   pinMode(RelayPin2, OUTPUT);
   pinMode(RelayPin3, OUTPUT);
   pinMode(RelayPin4, OUTPUT);
-  
+
   pinMode(wifiLed, OUTPUT);
+  pinMode(TemperaturePin, INPUT);
 
   pinMode(SwitchPin1, INPUT_PULLUP);
   pinMode(SwitchPin2, INPUT_PULLUP);
@@ -339,9 +358,16 @@ void loop()
   manual_control();       //Manual Control
   ir_remote_control();    //IR Remote Control
   readSensor();           //Get Sensor Data
+//  Serial.print(LED1);
+//  Serial.print(" - ");
+//  Serial.print(LED2);
+//  Serial.print(" - ");
+//  Serial.print(LED3);
+//  Serial.print(" - ");
+//  Serial.println(LED4);
 }
 
-void onLight1Change()
+void onLED1Change()
 {
   //Control the device
   if (LED1 == 1)
@@ -358,7 +384,7 @@ void onLight1Change()
   }
 }
 
-void onLight2Change()
+void onLED2Change()
 {
   if (LED2 == 1)
   {
@@ -374,7 +400,7 @@ void onLight2Change()
   }
 }
 
-void onLight3Change()
+void onLED3Change()
 {
   if (LED3 == 1)
   {
@@ -390,7 +416,7 @@ void onLight3Change()
   }
 }
 
-void onLight4Change()
+void onLED4Change()
 {
   if (LED4 == 1)
   {
